@@ -1,18 +1,130 @@
 [
-  {"area": "Brdy", "name": "Jince", "lat": 49.786, "lon": 13.978},
-  {"area": "Brdy", "name": "Hostomice", "lat": 49.825, "lon": 14.046},
-  {"area": "Brdy", "name": "Padrťské rybníky", "lat": 49.664, "lon": 13.770},
-  {"area": "Křivoklátsko", "name": "Zbečno", "lat": 50.041, "lon": 13.922},
-  {"area": "Křivoklátsko", "name": "Křivoklát", "lat": 50.038, "lon": 13.872},
-  {"area": "Křivoklátsko", "name": "Nižbor", "lat": 49.999, "lon": 14.002},
-  {"area": "Hřebeny", "name": "Voznice", "lat": 49.816, "lon": 14.224},
-  {"area": "Hřebeny", "name": "Dobříš", "lat": 49.781, "lon": 14.167},
-  {"area": "Kokořínsko", "name": "Mšeno", "lat": 50.438, "lon": 14.633},
-  {"area": "Kokořínsko", "name": "Kokořín", "lat": 50.435, "lon": 14.577},
-  {"area": "Klánovický les", "name": "Praha-Klánovice", "lat": 50.092, "lon": 14.680},
-  {"area": "Šumava", "name": "Kvilda", "lat": 49.020, "lon": 13.580},
-  {"area": "Šumava", "name": "Modrava", "lat": 49.024, "lon": 13.497},
-  {"area": "Šumava", "name": "Železná Ruda", "lat": 49.138, "lon": 13.235},
-  {"area": "Jeseníky", "name": "Rejvíz", "lat": 50.222, "lon": 17.293},
-  {"area": "Jeseníky", "name": "Červenohorské sedlo", "lat": 50.119, "lon": 17.152}
+ {
+  "area": "Brdy",
+  "name": "Jince",
+  "lat": 49.786,
+  "lon": 13.978,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Brdy",
+  "name": "Hostomice",
+  "lat": 49.825,
+  "lon": 14.046,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Brdy",
+  "name": "Padrťské rybníky",
+  "lat": 49.664,
+  "lon": 13.77,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Křivoklátsko",
+  "name": "Zbečno",
+  "lat": 50.041,
+  "lon": 13.922,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Křivoklátsko",
+  "name": "Křivoklát",
+  "lat": 50.038,
+  "lon": 13.872,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Křivoklátsko",
+  "name": "Nižbor",
+  "lat": 49.999,
+  "lon": 14.002,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Hřebeny",
+  "name": "Voznice",
+  "lat": 49.816,
+  "lon": 14.224,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Hřebeny",
+  "name": "Dobříš",
+  "lat": 49.781,
+  "lon": 14.167,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Kokořínsko",
+  "name": "Mšeno",
+  "lat": 50.438,
+  "lon": 14.633,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Kokořínsko",
+  "name": "Kokořín",
+  "lat": 50.435,
+  "lon": 14.577,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Klánovický les",
+  "name": "Praha-Klánovice",
+  "lat": 50.092,
+  "lon": 14.68,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Šumava",
+  "name": "Kvilda",
+  "lat": 49.02,
+  "lon": 13.58,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Šumava",
+  "name": "Modrava",
+  "lat": 49.024,
+  "lon": 13.497,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Šumava",
+  "name": "Železná Ruda",
+  "lat": 49.138,
+  "lon": 13.235,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Jeseníky",
+  "name": "Rejvíz",
+  "lat": 50.222,
+  "lon": 17.293,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ },
+ {
+  "area": "Jeseníky",
+  "name": "Červenohorské sedlo",
+  "lat": 50.119,
+  "lon": 17.152,
+  "cat": "instagram",
+  "note": "Джерело: @maria.dmytruk (Instagram)"
+ }
 ]
