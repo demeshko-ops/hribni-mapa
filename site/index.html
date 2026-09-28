@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Грибна мапа ČR</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+  :root{--bg:#fff;--fg:#1d2126;--muted:#5d6670;--card:#ffffffee;--line:#d9dde2;--acc:#2f6f3e}
+  @media (prefers-color-scheme:dark){:root{--bg:#15181b;--fg:#e8ebee;--muted:#9aa3ad;--card:#1d2226ee;--line:#343b42;--acc:#7cc46a}}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #map{position:absolute;inset:0}
+  .bar{position:absolute;z-index:1000;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+       background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;backdrop-filter:blur(6px);box-shadow:0 2px 10px #0002}
+  .bar h1{font-size:16px;margin:0;flex:1 1 auto;white-space:nowrap}
+  .bar small{color:var(--muted);display:block;font-weight:400;font-size:12px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:0;background:transparent;color:var(--fg);padding:7px 11px;font:inherit;font-size:14px;cursor:pointer}
+  .seg button.on{background:var(--acc);color:#fff}
+  .btns{position:absolute;z-index:1000;right:10px;bottom:calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+  .btns button{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:20px;cursor:pointer;box-shadow:0 2px 8px #0003}
+  .legend{position:absolute;z-index:1000;left:10px;bottom:calc(24px + env(safe-area-inset-bottom));background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:12px;box-shadow:0 2px 8px #0002}
+  .legend div{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sheet{position:absolute;z-index:1100;left:0;right:0;bottom:0;max-height:70%;overflow:auto;background:var(--bg);border-top:1px solid var(--line);
+         border-radius:16px 16px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px #0003;display:none}
+  .sheet.open{display:block}
+  .sheet h2{font-size:17px;margin:0 0 8px;display:flex;justify-content:space-between;align-items:center}
+  .sheet h2 button{border:0;background:none;color:var(--fg);font-size:22px;cursor:pointer}
+  .row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .row b{min-width:38px;text-align:center;border-radius:8px;padding:3px 0;color:#111}
+  .row span{flex:1}
+  .row em{color:var(--muted);font-style:normal;font-size:12px}
+  .sheet p{color:var(--muted);font-size:13px;margin:8px 0}
+  .sheet a{color:var(--acc)}
+  .leaflet-popup-content{font-size:14px;line-height:1.45;margin:10px 12px}
+  .leaflet-popup-content a{font-weight:600}
+  .pill{display:inline-block;border-radius:6px;padding:1px 7px;color:#111;font-weight:700}
+  .warn{background:#f2c12e;color:#111;border-radius:8px;padding:6px 8px;font-size:13px;margin-top:4px;width:100%}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="bar">
+  <h1>🍄 Грибна мапа ČR<small id="stamp">завантаження…</small></h1>
+  <div class="seg"><button id="d0" class="on">Сьогодні</button><button id="d3">Через 3 дні</button></div>
+  <div id="warn" class="warn" hidden>Тестові дані, не реальна погода.</div>
+</div>
+<div class="legend" id="legend"></div>
+<div class="btns">
+  <button id="bList" title="Мої місця">★</button>
+  <button id="bLoc" title="Моя позиція">◎</button>
+  <button id="bInfo" title="Як це рахується">i</button>
+</div>
+<div class="sheet" id="sList"><h2>Мої місця за шансами <button data-close>×</button></h2><div id="list"></div></div>
+<div class="sheet" id="sInfo"><h2>Як це рахується <button data-close>×</button></h2>
+  <p>Мапа оновлюється щоранку автоматично. Для кожного квадрата ~11×11 км рахуємо дві речі, як у методиці ČHMÚ:</p>
+  <p><b>Вологість ґрунту (API30)</b>: сума опадів за останні 30 днів, де свіжіші дощі важать більше. Нижче ~8 мм сухо, від ~35 мм і вище дуже волого.<br>
+  <b>Температура (T7)</b>: середня за 7 днів. Найкраще 10–20 °C, нижче 4 °C гриби майже не ростуть.</p>
+  <p>Індекс 0–100 = вологість × температурний коефіцієнт. «Через 3 дні» враховує прогноз опадів і температур.</p>
+  <p>Це власна наближена модель за відкритими даними, не офіційна мапа ČHMÚ. Не враховує тип лісу і ґрунт. Для перевірки: <a href="https://www.chmi.cz/namerena-data/pravdepodobnost-rustu-hub" target="_blank" rel="noopener">мапа ČHMÚ</a>, <a href="https://www.mykoindex.cz/mapa" target="_blank" rel="noopener">Mykoindex</a>.</p>
+  <p>Погодні дані: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Підкладка: © OpenStreetMap.</p>
+  <p>Нове місце додається у файл <code>site/data/spots.json</code> у репозиторії.</p>
+</div>
+<script src="vendor/leaflet.js"></script>
+<script>
+const CLASSES=[[80,"#1a9641","Дуже висока"],[60,"#7cc46a","Висока"],[40,"#f2c12e","Середня"],[20,"#f28e2b","Слабка"],[0,"#d7301f","Низька"]];
+const cls=v=>CLASSES.find(c=>v>=c[0]);
+const $=id=>document.getElementById(id);
+let day=0,G=null,SPOTS=[],gridLayer,spotLayer,idx={};
+
+const map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([49.8,15.4],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenStreetMap · Open-Meteo'}).addTo(map);
+const renderer=L.canvas({padding:.3});
+
+$('legend').innerHTML='<b>Шанс росту</b>'+CLASSES.map(c=>`<div><i style="background:${c[1]}"></i>${c[2]} ${c[0]}+</div>`).join('');
+
+function cellAt(lat,lon){
+  const i=Math.round((lat-48.55)/G.dlat), j=Math.round((lon-12.09)/G.dlon);
+  return idx[i+','+j];
+}
+const op=()=>map.getZoom()>=11?.22:map.getZoom()>=9?.35:.5;
+map.on('zoomend',()=>gridLayer&&gridLayer.eachLayer(l=>l.setStyle({fillOpacity:op()})));
+function vals(c){return day?{s:c[6],a:c[7],t:c[8]}:{s:c[2],a:c[3],t:c[4]}}
+function info(c){
+  const v=vals(c),k=cls(v.s);
+  return `<span class="pill" style="background:${k[1]}">${v.s}/100 · ${k[2]}</span><br>
+  Вологість API30: <b>${v.a} мм</b><br>Темп. за 7 днів: <b>${v.t ?? '–'} °C</b><br>Опади за 7 днів: <b>${c[5]} мм</b>`;
+}
+function draw(){
+  if(gridLayer) gridLayer.remove();
+  gridLayer=L.layerGroup();
+  const h=G.dlat/2,w=G.dlon/2;
+  for(const c of G.cells){
+    const v=vals(c);
+    L.rectangle([[c[0]-h,c[1]-w],[c[0]+h,c[1]+w]],{renderer,stroke:false,fillColor:cls(v.s)[1],fillOpacity:op(),interactive:false}).addTo(gridLayer);
+  }
+  gridLayer.addTo(map);
+  if(spotLayer) spotLayer.remove();
+  spotLayer=L.layerGroup();
+  const rows=[];
+  for(const s of SPOTS){
+    const c=cellAt(s.lat,s.lon); if(!c) continue;
+    const v=vals(c),k=cls(v.s);
+    const html=`<b>${s.area}: ${s.name}</b><br>${info(c)}<br><a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}" target="_blank" rel="noopener">Маршрут у Google Maps →</a>`;
+    const m=L.circleMarker([s.lat,s.lon],{radius:8,color:'#fff',weight:2.5,fillColor:k[1],fillOpacity:1}).bindPopup(html).bindTooltip(s.name,{direction:'top',offset:[0,-8]});
+    m.addTo(spotLayer); rows.push({s,v,k,m});
+  }
+  spotLayer.addTo(map);
+  rows.sort((a,b)=>b.v.s-a.v.s);
+  $('list').innerHTML='';
+  rows.forEach(r=>{
+    const d=document.createElement('div');d.className='row';
+    d.innerHTML=`<b style="background:${r.k[1]}">${r.v.s}</b><span>${r.s.name}<br><em>${r.s.area} · API30 ${r.v.a} мм · ${r.v.t ?? '–'} °C</em></span>›`;
+    d.onclick=()=>{closeSheets();map.setView([r.s.lat,r.s.lon],11);r.m.openPopup();};
+    $('list').appendChild(d);
+  });
+}
+map.on('click',e=>{
+  if(!G) return;
+  const c=cellAt(e.latlng.lat,e.latlng.lng);
+  if(c) L.popup().setLatLng(e.latlng).setContent(`<b>${day?'Через 3 дні':'Сьогодні'}</b><br>${info(c)}<br><a href="https://www.google.com/maps/dir/?api=1&destination=${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}" target="_blank" rel="noopener">Маршрут сюди →</a>`).openOn(map);
+});
+function setDay(d){day=d;$('d0').classList.toggle('on',!d);$('d3').classList.toggle('on',!!d);map.closePopup();draw();}
+$('d0').onclick=()=>setDay(0);$('d3').onclick=()=>setDay(3);
+function closeSheets(){document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'))}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheets);
+$('bList').onclick=()=>{closeSheets();$('sList').classList.add('open')};
+$('bInfo').onclick=()=>{closeSheets();$('sInfo').classList.add('open')};
+let me;
+$('bLoc').onclick=()=>{
+  if(!navigator.geolocation) return alert('Геолокація недоступна');
+  navigator.geolocation.getCurrentPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(me) me.remove();
+    me=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#2a7de1',fillOpacity:1}).addTo(map);
+    map.setView(ll,10);
+  },()=>alert('Не вдалося визначити позицію'));
+};
+Promise.all([
+  fetch('data/grid.json',{cache:'no-cache'}).then(r=>r.json()),
+  fetch('data/spots.json',{cache:'no-cache'}).then(r=>r.json()),
+  fetch('data/cz.geojson').then(r=>r.json())
+]).then(([g,s,cz])=>{
+  G=g;SPOTS=s;
+  for(const c of G.cells){idx[Math.round((c[0]-48.55)/G.dlat)+','+Math.round((c[1]-12.09)/G.dlon)]=c;}
+  L.geoJSON(cz,{style:{color:'#333',weight:1.5,fill:false},interactive:false}).addTo(map);
+  const dt=new Date(G.date+'T12:00:00');
+  $('stamp').textContent='Дані на '+(isNaN(dt)?G.date:dt.toLocaleDateString('uk-UA',{day:'numeric',month:'long'}))+' · оновлюється щодня';
+  $('warn').hidden=!G.fake;
+  draw();
+}).catch(e=>{$('stamp').textContent='Помилка завантаження даних';console.error(e)});
+</script>
+</body>
+</html>
