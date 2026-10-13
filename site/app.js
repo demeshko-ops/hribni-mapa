@@ -34,16 +34,71 @@ const renderer = L.canvas({padding:.3});
 const op = () => map.getZoom() >= 11 ? .22 : map.getZoom() >= 9 ? .35 : .5;
 map.on('zoomend', () => gridLayer && gridLayer.eachLayer(l => l.setStyle({fillOpacity:op()})));
 
-function cellAt(lat, lon){
+/* ---------- point index outside the grid (computed in the browser, same formula as scripts/build_data.py) ---------- */
+const EXTRA = {};                                   // "lat,lon" -> cell-like array, or 'pending'
+const ekey = (lat, lon) => (+lat).toFixed(3) + ',' + (+lon).toFixed(3);
+const PAST = 36, K = 0.93;
+function tempFactor(T){
+  if (T == null || T < 4) return 0;
+  if (T < 10) return (T - 4) / 6;
+  if (T <= 20) return 1;
+  if (T <= 28) return 1 - 0.6 * (T - 20) / 8;
+  return 0.4;
+}
+function scoreAt(p, t, d){
+  let a = 0; for (let i = 0; i < 30; i++) a += Math.pow(K, i) * (p[d - i] || 0);
+  const tv = t.slice(d - 6, d + 1).filter(x => x != null);
+  const T = tv.length ? tv.reduce((x, y) => x + y, 0) / tv.length : null;
+  const m = Math.min(1, Math.max(0, (a - 8) / 27));
+  return [Math.round(100 * m * tempFactor(T)), Math.round(a * 10) / 10, T == null ? null : Math.round(T * 10) / 10];
+}
+async function fetchPoints(pts){
+  const today = new Date().toISOString().slice(0, 10);
+  let cache = {};
+  try { cache = JSON.parse(store.get('hm_pts') || '{}'); if (cache.d !== today) cache = {d:today}; } catch { cache = {d:today}; }
+  const need = pts.filter(([la, lo]) => !cache[ekey(la, lo)]);
+  for (let i = 0; i < need.length; i += 50){
+    const part = need.slice(i, i + 50);
+    const q = new URLSearchParams({
+      latitude: part.map(p => (+p[0]).toFixed(4)).join(','), longitude: part.map(p => (+p[1]).toFixed(4)).join(','),
+      daily: 'precipitation_sum,temperature_2m_mean', past_days: PAST, forecast_days: 4, timezone: 'Europe/Prague'});
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?' + q);
+    if (!r.ok) throw new Error('Open-Meteo ' + r.status);
+    let j = await r.json(); if (!Array.isArray(j)) j = [j];
+    part.forEach(([la, lo], n) => {
+      const p = j[n].daily.precipitation_sum, t = j[n].daily.temperature_2m_mean;
+      const [s0, a0, T0] = scoreAt(p, t, PAST), [s3, a3, T3] = scoreAt(p, t, PAST + 3);
+      const r7 = Math.round(p.slice(PAST - 7, PAST).reduce((x, y) => x + (y || 0), 0) * 10) / 10;
+      cache[ekey(la, lo)] = [+la, +lo, s0, a0, T0, r7, s3, a3, T3, 1];
+    });
+  }
+  store.set('hm_pts', JSON.stringify(cache));
+  for (const [la, lo] of pts) if (cache[ekey(la, lo)]) EXTRA[ekey(la, lo)] = cache[ekey(la, lo)];
+}
+let extraBusy = false;
+async function fillMissing(){
+  if (extraBusy || !G) return;
+  const miss = allSpots().filter(s => !gridCell(s.lat, s.lon) && !EXTRA[ekey(s.lat, s.lon)]).map(s => [s.lat, s.lon]);
+  if (!miss.length) return;
+  extraBusy = true;
+  try { await fetchPoints(miss); drawSpots(); } catch (e) { console.warn('point index', e); }
+  finally { extraBusy = false; }
+}
+
+function gridCell(lat, lon){
   if (!G) return null;
   return idx[Math.round((lat-48.55)/G.dlat)+','+Math.round((lon-12.09)/G.dlon)];
 }
+function cellAt(lat, lon){
+  return gridCell(lat, lon) || EXTRA[ekey(lat, lon)] || null;
+}
 const vals = c => day ? {s:c[6], a:c[7], t:c[8]} : {s:c[2], a:c[3], t:c[4]};
 function growthHtml(c){
-  if (!c) return '<span style="color:var(--muted)">Поза мапою ймовірності</span>';
+  if (!c) return '<span style="color:var(--muted)">Рахую ймовірність…</span>';
   const v = vals(c), k = cls(v.s);
   return `<span class="pill" style="background:${k[1]}">${v.s}/100 · ${k[2]}</span><br>
-  Вологість API30: <b>${v.a} мм</b> · T7: <b>${v.t ?? '–'} °C</b><br>Опади за 7 днів: <b>${c[5]} мм</b>`;
+  Вологість API30: <b>${v.a} мм</b> · T7: <b>${v.t ?? '–'} °C</b><br>Опади за 7 днів: <b>${c[5]} мм</b>` +
+  (c[9] ? '<br><small style="color:var(--muted)">Розраховано для цієї точки (поза сіткою ČR)</small>' : '');
 }
 const route = (lat, lon) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
@@ -99,6 +154,7 @@ function drawSpots(){
   }
   drawChips(); drawLegend();
   $('lockNote').hidden = !(privExists && !PRIV);
+  fillMissing();
 }
 function drawChips(){
   const box = $('chips'); box.innerHTML = '';
@@ -228,10 +284,14 @@ map.on('click', e => {
     pickMode = false; $('pickHint').style.display = 'none';
     $('fLoc').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`; openSheet('sAdd'); showLoc(); return;
   }
+  const html = c => `<b>${day ? 'Через 3 дні' : 'Сьогодні'}</b><br>${growthHtml(c)}<div style="margin-top:6px"><a href="${route(lat.toFixed(5), lng.toFixed(5))}" target="_blank" rel="noopener">Маршрут сюди →</a><br><a href="#" onclick="addAt(${lat},${lng});return false">＋ Додати місце тут</a></div>`;
   const c = cellAt(lat, lng);
-  L.popup().setLatLng(e.latlng).setContent(
-    `<b>${day ? 'Через 3 дні' : 'Сьогодні'}</b><br>${growthHtml(c)}<div style="margin-top:6px"><a href="${route(lat.toFixed(5), lng.toFixed(5))}" target="_blank" rel="noopener">Маршрут сюди →</a><br><a href="#" onclick="addAt(${lat},${lng});return false">＋ Додати місце тут</a></div>`
-  ).openOn(map);
+  const pop = L.popup().setLatLng(e.latlng).setContent(html(c)).openOn(map);
+  if (!c){
+    fetchPoints([[lat, lng]])
+      .then(() => pop.setContent(html(cellAt(lat, lng))))
+      .catch(() => pop.setContent(html(null).replace('Рахую ймовірність…', 'Не вдалося отримати погоду для цієї точки')));
+  }
 });
 
 $('bSave').onclick = async () => {
