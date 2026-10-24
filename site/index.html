@@ -19,7 +19,14 @@
   .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .seg button{border:0;background:transparent;color:var(--fg);padding:7px 11px;font:inherit;font-size:14px;cursor:pointer}
   .seg button.on{background:var(--acc);color:#fff}
-  .hint{position:absolute;z-index:1000;left:50%;transform:translateX(-50%);top:calc(92px + env(safe-area-inset-top));background:var(--acc);color:#fff;padding:8px 14px;border-radius:20px;font-size:14px;box-shadow:0 2px 8px #0003;display:none;gap:10px;align-items:center}
+  .search{position:relative;width:100%}
+  .search input{padding:8px 10px;font-size:16px;border-radius:10px}
+  .qres{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px #0004;max-height:55vh;overflow:auto;z-index:1200}
+  .qres button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;color:var(--fg);font:inherit;padding:9px 12px;cursor:pointer}
+  .qres button:last-child{border-bottom:0}
+  .qres small{display:block;color:var(--muted);font-size:12px}
+  .qres p{margin:10px 12px;color:var(--muted);font-size:13px}
+  .hint{position:absolute;z-index:1000;left:50%;transform:translateX(-50%);top:calc(140px + env(safe-area-inset-top));background:var(--acc);color:#fff;padding:8px 14px;border-radius:20px;font-size:14px;box-shadow:0 2px 8px #0003;display:none;gap:10px;align-items:center}
   .hint button{background:#fff3;border:0;color:#fff;border-radius:12px;padding:3px 9px;font:inherit}
   .btns{position:absolute;z-index:1000;right:10px;bottom:calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
   .btns button{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:20px;cursor:pointer;box-shadow:0 2px 8px #0003}
@@ -75,6 +82,10 @@
   <h1>🍄 Грибна мапа ČR<small id="stamp">завантаження…</small></h1>
   <div class="seg"><button id="d0" class="on">Сьогодні</button><button id="d3">Через 3 дні</button></div>
   <div id="warn" class="warn" hidden>Тестові дані, не реальна погода.</div>
+  <div class="search">
+    <input id="q" type="search" placeholder="🔍 Ліс, район, село або координати" autocomplete="off" enterkeyhint="search">
+    <div id="qres" class="qres" hidden></div>
+  </div>
 </div>
 <div class="hint" id="pickHint">Тапніть на мапі, де місце <button id="pickCancel">Скасувати</button></div>
 <div class="legend" id="legend"></div>

@@ -137,7 +137,7 @@ function drawSpots(){
     if (s.note) html += `<div class="note">${esc(s.note)}</div>`;
     html += `<div style="margin-top:4px">${growthHtml(c)}</div><div style="margin-top:6px"><a href="${route(s.lat,s.lon)}" target="_blank" rel="noopener">Маршрут у Google Maps →</a></div>`;
     if (!s.pub) html += `<div style="margin-top:6px"><a href="#" onclick="openEdit('${s.id}');return false">✏️ Редагувати</a></div>`;
-    const m = L.marker([s.lat, s.lon], {icon:pinIcon(cat, v && v.s)}).bindPopup(html, {autoPanPaddingTopLeft:[10,150], autoPanPaddingBottomRight:[70,20]});
+    const m = L.marker([s.lat, s.lon], {icon:pinIcon(cat, v && v.s)}).bindPopup(html, {autoPanPaddingTopLeft:[10,190], autoPanPaddingBottomRight:[70,20]});
     m.addTo(spotLayer); markers[s.id] = m;
     rows.push({s, cat, v, title, m});
   }
@@ -245,12 +245,12 @@ async function ensureUnlocked(){
   if (PRIV) return true;
   return askPassword(!privExists);
 }
-async function openAdd(lat, lon){
+async function openAdd(lat, lon, name){
   if (privExists && !PRIV && !(await askPassword(false))) return;
   editId = null;
   $('addTitle').firstChild.textContent = 'Нове місце ';
   $('fLoc').value = lat != null ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : '';
-  $('fName').value = ''; $('fNote').value = ''; $('saveMsg').innerHTML = '';
+  $('fName').value = name || ''; $('fNote').value = ''; $('saveMsg').innerHTML = '';
   $('bDel').hidden = true;
   fillCats();
   openSheet('sAdd'); showLoc();
@@ -265,7 +265,7 @@ window.openEdit = async id => {
   $('saveMsg').innerHTML = ''; $('bDel').hidden = false;
   fillCats(s.cat); openSheet('sAdd'); showLoc();
 };
-window.addAt = (lat, lon) => { map.closePopup(); openAdd(lat, lon); };
+window.addAt = (lat, lon, name) => { map.closePopup(); openAdd(lat, lon, name); };
 $('bAdd').onclick = () => openAdd();
 
 $('bHere').onclick = () => {
@@ -487,3 +487,83 @@ Promise.all([
   redraw();
   loadPriv();
 });
+
+/* ---------- search (Photon / OpenStreetMap, fallback Nominatim) ---------- */
+const TYPES = {forest:'ліс', wood:'ліс', nature_reserve:'заповідник', national_park:'нац. парк', protected_area:'охоронна зона',
+  peak:'вершина', hill:'пагорб', ridge:'хребет', valley:'долина', water:'водойма', lake:'озеро', reservoir:'водосховище', pond:'ставок',
+  city:'місто', town:'місто', village:'село', hamlet:'хутір', suburb:'район', locality:'місцевість', isolated_dwelling:'садиба',
+  parking:'парковка', car_park:'парковка', mountain_range:'гори', heath:'пустище', meadow:'луки', castle:'замок', state:'край', county:'округ', district:'округ'};
+const qEl = $('q'), qRes = $('qres');
+let qTimer = null, qSeq = 0, qItems = [], searchMarker = null;
+function photonUrl(q){
+  const c = map.getCenter();
+  return 'https://photon.komoot.io/api/?' + new URLSearchParams({q, limit:8, lat:c.lat.toFixed(3), lon:c.lng.toFixed(3), location_bias_scale:0.3});
+}
+async function geocode(q){
+  try {
+    const r = await fetch(photonUrl(q));
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    return j.features.map(f => {
+      const p = f.properties, [lon, lat] = f.geometry.coordinates;
+      const place = [p.city || p.town || p.village, p.county, p.state, p.country].filter((x, i, a) => x && x !== p.name && a.indexOf(x) === i).slice(0, 3).join(', ');
+      return {name: p.name || p.street || q, lat, lon, kind: TYPES[p.osm_value] || TYPES[p.type] || '', place,
+              ext: p.extent ? [[p.extent[3], p.extent[0]], [p.extent[1], p.extent[2]]] : null};
+    });
+  } catch (e) {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?' + new URLSearchParams({q, format:'jsonv2', limit:8, 'accept-language':'cs,uk,en'}));
+    const j = await r.json();
+    return j.map(x => ({name: x.name || x.display_name.split(',')[0], lat:+x.lat, lon:+x.lon, kind: TYPES[x.type] || '',
+      place: x.display_name.split(',').slice(1, 4).join(',').trim(),
+      ext: x.boundingbox ? [[+x.boundingbox[0], +x.boundingbox[2]], [+x.boundingbox[1], +x.boundingbox[3]]] : null}));
+  }
+}
+function showResults(items, msg){
+  qItems = items;
+  qRes.hidden = false;
+  if (msg) { qRes.innerHTML = `<p>${esc(msg)}</p>`; return; }
+  if (!items.length) { qRes.innerHTML = '<p>Нічого не знайдено. Спробуйте іншу назву або додайте місто.</p>'; return; }
+  qRes.innerHTML = items.map((it, i) => `<button type="button" data-i="${i}"><b>${esc(it.name)}</b>${it.kind ? ' · ' + esc(it.kind) : ''}<small>${esc(it.place)}</small></button>`).join('');
+  qRes.querySelectorAll('button').forEach(b => b.onclick = () => pickResult(qItems[+b.dataset.i]));
+}
+function hideResults(){ qRes.hidden = true; }
+async function runSearch(immediate){
+  const q = qEl.value.trim();
+  clearTimeout(qTimer);
+  if (q.length < 3) { hideResults(); return; }
+  const loc = parseLoc(q);
+  if (loc && !loc.err) { showResults([{name: `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`, lat: loc.lat, lon: loc.lon, kind: 'координати', place: '', ext: null}]); if (immediate) pickResult(qItems[0]); return; }
+  if (loc && loc.err === 'short') { showResults([], 'Короткі посилання Google Maps не відкриваються. Вставте координати або назву.'); return; }
+  const go = async () => {
+    const seq = ++qSeq;
+    showResults([], 'Шукаю…');
+    try {
+      const items = await geocode(q);
+      if (seq !== qSeq) return;
+      showResults(items);
+      if (immediate && items.length) pickResult(items[0]);
+    } catch { if (seq === qSeq) showResults([], 'Пошук зараз недоступний.'); }
+  };
+  if (immediate) go(); else qTimer = setTimeout(go, 450);
+}
+function pickResult(it){
+  if (!it) return;
+  hideResults(); qEl.blur();
+  if (it.ext && Math.abs(it.ext[1][0] - it.ext[0][0]) > 0.005) map.fitBounds(it.ext, {paddingTopLeft:[20,170], paddingBottomRight:[20,40], maxZoom:14});
+  else map.setView([it.lat, it.lon], 13);
+  if (searchMarker) searchMarker.remove();
+  searchMarker = L.circleMarker([it.lat, it.lon], {radius:9, color:'#fff', weight:3, fillColor:'#7b3fe4', fillOpacity:1}).addTo(map);
+  const enc = x => encodeURIComponent(x).replace(/'/g, '%27');
+  const html = c => `<b>${esc(it.name)}</b>${it.kind ? ' · ' + esc(it.kind) : ''}<br><small style="color:var(--muted)">${esc(it.place)}</small>
+    <div style="margin-top:6px">${growthHtml(c)}</div>
+    <div style="margin-top:6px"><a href="https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}" target="_blank" rel="noopener">Відкрити в Google Maps →</a><br>
+    <a href="${route(it.lat.toFixed(5), it.lon.toFixed(5))}" target="_blank" rel="noopener">Маршрут сюди →</a><br>
+    <a href="#" onclick="addAt(${it.lat},${it.lon},decodeURIComponent('${enc(it.name)}'));return false">＋ Додати як моє місце</a></div>`;
+  searchMarker.bindPopup(html(cellAt(it.lat, it.lon)), {autoPanPaddingTopLeft:[10,190]});
+  setTimeout(() => searchMarker.openPopup(), 350);
+  if (!cellAt(it.lat, it.lon)) fetchPoints([[it.lat, it.lon]]).then(() => searchMarker && searchMarker.setPopupContent(html(cellAt(it.lat, it.lon)))).catch(() => {});
+}
+qEl.addEventListener('input', () => runSearch(false));
+qEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runSearch(true); } if (e.key === 'Escape') hideResults(); });
+qEl.addEventListener('focus', () => { if (qItems.length && qEl.value.trim().length >= 3) qRes.hidden = false; });
+map.on('movestart', hideResults);
